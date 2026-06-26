@@ -375,7 +375,7 @@ onAuthStateChanged(auth, (user) => {
     <div class="form-section">
       <h3>📋 Últimas Movimentações</h3>
       <table>
-        <thead><tr><th>Data</th><th>Descrição</th><th>Categoria</th><th>Método</th><th>Tipo</th><th style="text-align:right">Valor</th></tr></thead>
+        <thead><tr><th>Data</th><th>Descrição</th><th>Categoria</th><th>Método</th><th>Tipo</th><th style="text-align:right">Valor</th><th></th></tr></thead>
         <tbody id="recent-tbody"></tbody>
       </table>
     </div>
@@ -662,23 +662,9 @@ let store = JSON.parse(localStorage.getItem('fintrack') || 'null') || {
     { id: 7, name: 'Investimentos', emoji: '📈', budget: 500,  color: '#14B8A6' },
     { id: 8, name: 'Outros',        emoji: '📦', budget: 200,  color: '#94A3B8' },
   ],
-  transactions: [
-    { id:1,  date:'2025-06-01', desc:'Salário',      catId:7, type:'entrada', method:'ted',        value:4500 },
-    { id:2,  date:'2025-06-02', desc:'Supermercado', catId:1, type:'saida',   method:'pix',        value:320  },
-    { id:3,  date:'2025-06-03', desc:'Uber',         catId:2, type:'saida',   method:'cartao_cred',value:45   },
-    { id:4,  date:'2025-06-05', desc:'Internet',     catId:3, type:'saida',   method:'debito',     value:120  },
-    { id:5,  date:'2025-06-08', desc:'Farmácia',     catId:4, type:'saida',   method:'pix',        value:89   },
-    { id:6,  date:'2025-06-10', desc:'Restaurante',  catId:1, type:'saida',   method:'cartao_cred',value:78   },
-    { id:7,  date:'2025-06-12', desc:'Freelance',    catId:7, type:'entrada', method:'pix',        value:800  },
-    { id:8,  date:'2025-06-15', desc:'Academia',     catId:5, type:'saida',   method:'cartao_deb', value:90   },
-    { id:9,  date:'2025-06-18', desc:'Combustível',  catId:2, type:'saida',   method:'cartao_cred',value:150  },
-    { id:10, date:'2025-06-20', desc:'Streaming',    catId:5, type:'saida',   method:'cartao_cred',value:55   },
-  ],
-  installments: [
-    { id:1, desc:'Notebook', total:3600, parcelas:12, inicio:'2025-03', method:'cartao_cred', catId:6, pago:3 },
-    { id:2, desc:'TV 55"',   total:2400, parcelas:10, inicio:'2025-05', method:'cartao_cred', catId:5, pago:1 },
-  ],
-  nextId: 11
+  transactions: [],
+  installments: [],
+  nextId: 1
 };
 
 const _now = new Date();
@@ -791,6 +777,7 @@ function renderDashboard() {
       <td>${methodTag(t.method)}</td>
       <td><span class="tag ${t.type}">${t.type==='entrada'?'↑ Entrada':'↓ Saída'}</span></td>
       <td style="text-align:right;color:${t.type==='entrada'?'var(--green)':'var(--red)'};font-weight:700">${R$(t.value)}</td>
+      <td><button class="btn ghost" style="padding:4px 10px;font-size:11px" onclick="openEditModal(${t.id})">✏️</button></td>
     </tr>`;
   }).join('') || '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:24px">Nenhum lançamento neste mês</td></tr>';
 
@@ -899,7 +886,10 @@ function renderAllTransactions() {
       <td>${methodTag(t.method)}</td>
       <td><span class="tag ${t.type}">${t.type==='entrada'?'↑ Entrada':'↓ Saída'}</span></td>
       <td style="text-align:right;color:${t.type==='entrada'?'var(--green)':'var(--red)'};font-weight:700">${R$(t.value)}</td>
-      <td><button class="btn danger" style="padding:4px 10px;font-size:11px" onclick="deleteTransaction(${t.id})">Remover</button></td>
+      <td style="display:flex;gap:6px">
+        <button class="btn ghost" style="padding:4px 10px;font-size:11px" onclick="openEditModal(${t.id})">✏️ Editar</button>
+        <button class="btn danger" style="padding:4px 10px;font-size:11px" onclick="deleteTransaction(${t.id})">🗑️ Remover</button>
+      </td>
     </tr>`;
   }).join('');
 }
@@ -1066,6 +1056,48 @@ function renderAnualReport() {
   const el=document.getElementById('anual-total-saldo');
   el.textContent=R$(tS); el.style.color=tS>=0?'var(--green)':'var(--red)';
 }
+// ── EDITAR LANÇAMENTO ─────────────────────────────────────────────────────────
+function openEditModal(id) {
+  const t = store.transactions.find(t => t.id === id);
+  if (!t) return;
+  renderCatSelect('e-cat');
+  document.getElementById('e-id').value    = t.id;
+  document.getElementById('e-tipo').value  = t.type;
+  document.getElementById('e-data').value  = t.date;
+  document.getElementById('e-desc').value  = t.desc;
+  document.getElementById('e-cat').value   = t.catId;
+  document.getElementById('e-metodo').value = t.method;
+  document.getElementById('e-valor').value = t.value;
+  const modal = document.getElementById('modal-edit');
+  modal.style.display = 'flex';
+}
+
+function closeEditModal() {
+  document.getElementById('modal-edit').style.display = 'none';
+}
+
+function saveEdit() {
+  const id     = +document.getElementById('e-id').value;
+  const tipo   = document.getElementById('e-tipo').value;
+  const data   = document.getElementById('e-data').value;
+  const desc   = document.getElementById('e-desc').value.trim();
+  const catId  = +document.getElementById('e-cat').value;
+  const method = document.getElementById('e-metodo').value;
+  const value  = +document.getElementById('e-valor').value;
+  if (!data || !desc || !value) return alert('Preencha todos os campos.');
+  const t = store.transactions.find(t => t.id === id);
+  if (!t) return;
+  t.type = tipo; t.date = data; t.desc = desc;
+  t.catId = catId; t.method = method; t.value = value;
+  save();
+  closeEditModal();
+  renderAllTransactions();
+}
+
+// Fecha modal ao clicar fora
+document.getElementById('modal-edit').addEventListener('click', function(e) {
+  if (e.target === this) closeEditModal();
+});
 // ── AUTH ─────────────────────────────────────────────────────────────────────
 async function doLogin() {
   const email = document.getElementById('login-email').value.trim();
@@ -1109,6 +1141,7 @@ function applyStoredTheme() {
 
 // ── INIT ─────────────────────────────────────────────────────────────────────
 async function initApp() {
+  window.appIniciado = true;
   applyStoredTheme();
   document.getElementById('f-data').value = new Date().toISOString().split('T')[0];
   document.getElementById('p-inicio').value = currentMonth;
@@ -1120,9 +1153,8 @@ async function initApp() {
 
 // Inicia imediatamente com localStorage — sem esperar Firebase
 initApp();
-
-// Quando Firebase estiver pronto, sincroniza em segundo plano
 window.addEventListener('firebase-ready', async () => {
+  
   try {
     const remoteData = await window._fbLoad();
     if (remoteData && remoteData.transactions) {
@@ -1136,6 +1168,56 @@ window.addEventListener('firebase-ready', async () => {
     setFbStatus('err', '⚠️ Offline — dados locais');
   }
 });
+
+// Fallback: se Firebase demorar mais de 4s, inicia sem ele
+setTimeout(() => { if (!window.appIniciado) initApp(); }, 4000);
 </script>
+<!-- ── MODAL EDITAR LANÇAMENTO ── -->
+<div id="modal-edit" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.6);z-index:9998;align-items:center;justify-content:center">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:32px;width:100%;max-width:520px;box-shadow:0 20px 60px rgba(0,0,0,.5)">
+    <h3 style="font-size:16px;font-weight:700;margin-bottom:20px">✏️ Editar Lançamento</h3>
+    <div class="form-grid">
+      <div class="form-group">
+        <label>Tipo</label>
+        <select id="e-tipo">
+          <option value="saida">💸 Saída (Gasto)</option>
+          <option value="entrada">💰 Entrada (Receita)</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Data</label>
+        <input type="date" id="e-data">
+      </div>
+      <div class="form-group">
+        <label>Descrição</label>
+        <input type="text" id="e-desc" placeholder="Ex: Mercado, Salário...">
+      </div>
+      <div class="form-group">
+        <label>Categoria</label>
+        <select id="e-cat"></select>
+      </div>
+      <div class="form-group">
+        <label>Método de Pagamento</label>
+        <select id="e-metodo">
+          <option value="pix">PIX</option>
+          <option value="cartao_cred">Cartão de Crédito</option>
+          <option value="cartao_deb">Cartão de Débito</option>
+          <option value="dinheiro">Dinheiro</option>
+          <option value="boleto">Boleto</option>
+          <option value="ted">TED/DOC</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Valor (R$)</label>
+        <input type="number" id="e-valor" placeholder="0,00" step="0.01" min="0">
+      </div>
+    </div>
+    <input type="hidden" id="e-id">
+    <div class="actions" style="margin-top:20px">
+      <button class="btn primary" onclick="saveEdit()">Salvar Alterações</button>
+      <button class="btn ghost" onclick="closeEditModal()">Cancelar</button>
+    </div>
+  </div>
+</div>
 </body>
 </html>
